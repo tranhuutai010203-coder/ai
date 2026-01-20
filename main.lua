@@ -1,37 +1,54 @@
---// Blind Bomber ESP FINAL (ANTI LAG + FIX BOMB)
+--// Blind Bomber ESP FINAL
+--// Fixed Bomb Detection + Anti Lag
+--// Rayfield UI
 
 if not Drawing then return end
 
---========== LIB =========--
+--================ LIB =================--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
     Name = "Blind Bomber ESP",
     LoadingTitle = "Blind Bomber",
-    LoadingSubtitle = "Stable Version",
+    LoadingSubtitle = "Final Stable",
     ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("ESP", 4483362458)
 
---========== SERVICES =========--
+--================ SERVICES =================--
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
---========== TOGGLES =========--
+--================ TOGGLES =================--
 local ESP_PLAYER = false
 local ESP_NAME = false
 local ESP_BOMB = false
 local ESP_HOLDER = false
 
-Tab:CreateToggle({ Name="ESP Player", Callback=function(v) ESP_PLAYER=v end })
-Tab:CreateToggle({ Name="ESP Name", Callback=function(v) ESP_NAME=v end })
-Tab:CreateToggle({ Name="ESP Bomb (Placed)", Callback=function(v) ESP_BOMB=v end })
-Tab:CreateToggle({ Name="ESP Bomb Holder", Callback=function(v) ESP_HOLDER=v end })
+Tab:CreateToggle({
+    Name = "ESP Player (Box)",
+    Callback = function(v) ESP_PLAYER = v end
+})
 
---========== PLAYER ESP =========--
+Tab:CreateToggle({
+    Name = "ESP Name",
+    Callback = function(v) ESP_NAME = v end
+})
+
+Tab:CreateToggle({
+    Name = "ESP Bomb (Placed)",
+    Callback = function(v) ESP_BOMB = v end
+})
+
+Tab:CreateToggle({
+    Name = "ESP Bomb Holder",
+    Callback = function(v) ESP_HOLDER = v end
+})
+
+--================ PLAYER ESP =================--
 local playerESP = {}
 
 local function clearPlayer(plr)
@@ -43,48 +60,66 @@ end
 
 Players.PlayerRemoving:Connect(clearPlayer)
 
---========== BOMB CACHE =========--
+--================ BOMB DETECTION =================--
+-- Bomb trong Blind Bomber:
+-- BasePart + có Mesh / Particle / vòng tròn đỏ
+-- KHÔNG dựa vào tên
+
 local bombCache = {}
 
-local function isBombPart(part)
-    return part:IsA("BasePart")
-       and part:FindFirstChildWhichIsA("TouchInterest")
-       and not part:IsDescendantOf(LocalPlayer.Character)
+local function isPlacedBomb(obj)
+    if not obj:IsA("BasePart") then return false end
+    if LocalPlayer.Character and obj:IsDescendantOf(LocalPlayer.Character) then return false end
+
+    for _,v in ipairs(obj:GetChildren()) do
+        if v:IsA("SpecialMesh")
+        or v:IsA("CylinderMesh")
+        or v:IsA("ParticleEmitter")
+        or v:IsA("SelectionSphere")
+        or v:IsA("SelectionRing") then
+            return true
+        end
+    end
+
+    return false
 end
 
--- detect bomb spawn
+-- cache bomb khi spawn
 workspace.DescendantAdded:Connect(function(obj)
-    if isBombPart(obj) then
-        local text = Drawing.new("Text")
-        text.Text = "💣 BOMB"
-        text.Size = 14
-        text.Center = true
-        text.Outline = true
-        text.Color = Color3.fromRGB(255,70,70)
+    if isPlacedBomb(obj) then
+        local txt = Drawing.new("Text")
+        txt.Text = "💣"
+        txt.Size = 16
+        txt.Center = true
+        txt.Outline = true
+        txt.Color = Color3.fromRGB(255,60,60)
+        txt.Visible = false
 
-        bombCache[obj] = text
+        bombCache[obj] = txt
 
         obj.AncestryChanged:Connect(function(_, parent)
             if not parent then
-                text:Remove()
+                txt:Remove()
                 bombCache[obj] = nil
             end
         end)
     end
 end)
 
---========== HOLDER CHECK =========--
+--================ HOLDER CHECK =================--
 local function IsHoldingBomb(plr)
     if not plr.Character then return false end
 
     for _,v in ipairs(plr.Character:GetChildren()) do
-        if v:IsA("Tool") then return true end
+        if v:IsA("Tool") then
+            return true -- Blind Bomber chỉ cho cầm bomb
+        end
     end
 
     return false
 end
 
---========== MAIN LOOP =========--
+--================ MAIN LOOP =================--
 RunService.RenderStepped:Connect(function()
     -- PLAYER ESP
     for _,plr in ipairs(Players:GetPlayers()) do
@@ -102,12 +137,12 @@ RunService.RenderStepped:Connect(function()
             local box = playerESP[plr].box
             local name = playerESP[plr].name
 
-            local isHolder = ESP_HOLDER and IsHoldingBomb(plr)
-            local color = isHolder and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
+            local holder = ESP_HOLDER and IsHoldingBomb(plr)
+            local color = holder and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
 
             if ESP_PLAYER and vis then
                 local s = 2000 / pos.Z
-                box.Size = Vector2.new(s, s*1.5)
+                box.Size = Vector2.new(s, s * 1.5)
                 box.Position = Vector2.new(pos.X - s/2, pos.Y - s)
                 box.Color = color
                 box.Thickness = 2
@@ -118,11 +153,11 @@ RunService.RenderStepped:Connect(function()
 
             if ESP_NAME and vis then
                 name.Text = plr.Name
-                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Size = 16
                 name.Center = true
                 name.Outline = true
                 name.Color = color
+                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Visible = true
             else
                 name.Visible = false
@@ -132,9 +167,9 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    -- BOMB ESP UPDATE (NHẸ)
+    -- BOMB ESP (NHẸ – KHÔNG SCAN)
     for part,txt in pairs(bombCache) do
-        if ESP_BOMB and part and part.Parent then
+        if ESP_BOMB and part.Parent then
             local p, v = Camera:WorldToViewportPoint(part.Position)
             txt.Visible = v
             if v then

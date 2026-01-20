@@ -1,31 +1,29 @@
---// Blind Bomber ESP - Full Fixed Version
---// UI: Rayfield | Event-based | No Lag
+--// Blind Bomber ESP + Give Bomb Tool (FULL)
+--// UI: Rayfield | Event-based | Optimized | No Lag
 
 --// SERVICES
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local LocalPlayer = Players.LocalPlayer
-local Camera = Workspace.CurrentCamera
 
 --// UI LIB
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-    Name = "Blind Bomber ESP",
-    LoadingTitle = "Blind Bomber ESP",
-    LoadingSubtitle = "by ChatGPT",
-    ConfigurationSaving = {
-        Enabled = false
-    }
+    Name = "Blind Bomber | ESP + Bomb",
+    LoadingTitle = "Blind Bomber",
+    LoadingSubtitle = "ESP + Give Bomb",
+    ConfigurationSaving = {Enabled = false}
 })
 
-local Tab = Window:CreateTab("ESP", 4483362458)
+local Tab = Window:CreateTab("ESP / Bomb", 4483362458)
 
 --// SETTINGS
 local Settings = {
     PlayerESP = false,
-    NameESP = false,
     BombPlacedESP = false,
     BombHolderESP = false
 }
@@ -34,7 +32,7 @@ local Settings = {
 local PlayerESP = {}
 local BombESP = {}
 
---// UTILS
+--// UTIL
 local function CreateHighlight(color)
     local h = Instance.new("Highlight")
     h.FillColor = color
@@ -44,7 +42,7 @@ local function CreateHighlight(color)
     return h
 end
 
---// CHECK BOMB TOOL (FIX AI CŨNG CẦM BOM)
+--// CHECK HOLDING BOMB (FIX AI CŨNG CẦM BOM)
 local function IsHoldingBomb(plr)
     if not plr.Character then return false end
 
@@ -63,7 +61,7 @@ local function IsHoldingBomb(plr)
     return false
 end
 
---// PLAYER ESP
+--// PLAYER ESP SETUP
 local function SetupPlayer(plr)
     if plr == LocalPlayer then return end
 
@@ -82,27 +80,27 @@ local function SetupPlayer(plr)
     if plr.Character then
         OnCharacter(plr.Character)
     end
-
     plr.CharacterAdded:Connect(OnCharacter)
 end
 
 for _,p in ipairs(Players:GetPlayers()) do
     SetupPlayer(p)
 end
-
 Players.PlayerAdded:Connect(SetupPlayer)
 
---// BOMB HOLDER CHECK (EVENT BASED)
+--// UPDATE BOMB HOLDER (NHẸ – KHÔNG LAG)
 RunService.Heartbeat:Connect(function()
     if not Settings.BombHolderESP then return end
 
     for plr,hl in pairs(PlayerESP) do
-        if hl and hl.Parent and IsHoldingBomb(plr) then
-            hl.FillColor = Color3.fromRGB(255,0,0)
-            hl.Enabled = true
-        elseif hl then
-            hl.FillColor = Color3.fromRGB(0,255,0)
-            hl.Enabled = Settings.PlayerESP
+        if hl and hl.Parent then
+            if IsHoldingBomb(plr) then
+                hl.FillColor = Color3.fromRGB(255,0,0)
+                hl.Enabled = true
+            else
+                hl.FillColor = Color3.fromRGB(0,255,0)
+                hl.Enabled = Settings.PlayerESP
+            end
         end
     end
 end)
@@ -112,15 +110,15 @@ Workspace.ChildAdded:Connect(function(obj)
     if not Settings.BombPlacedESP then return end
 
     if obj:IsA("Model") or obj:IsA("Part") then
-        local hasTimer = false
+        local isBomb = false
 
         for _,v in ipairs(obj:GetDescendants()) do
             if v:IsA("SurfaceGui") or v:IsA("BillboardGui") then
-                hasTimer = true
+                isBomb = true
             end
         end
 
-        if hasTimer then
+        if isBomb then
             local hl = CreateHighlight(Color3.fromRGB(255,170,0))
             hl.Adornee = obj
             hl.Parent = obj
@@ -137,7 +135,44 @@ Workspace.ChildAdded:Connect(function(obj)
     end
 end)
 
---// UI TOGGLES
+--// GIVE BOMB TOOL
+local function GiveBomb()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return end
+
+    local function Scan(container)
+        for _,v in ipairs(container:GetDescendants()) do
+            if v:IsA("Tool") and v:FindFirstChild("Handle") then
+                for _,m in ipairs(v.Handle:GetChildren()) do
+                    if m:IsA("SpecialMesh")
+                    or m:IsA("ParticleEmitter")
+                    or m:IsA("SelectionSphere")
+                    or m:IsA("SelectionRing") then
+                        v:Clone().Parent = backpack
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    if Scan(ReplicatedStorage) or Scan(Workspace) then
+        Rayfield:Notify({
+            Title = "Give Bomb",
+            Content = "Bomb tool added to Backpack",
+            Duration = 4
+        })
+    else
+        Rayfield:Notify({
+            Title = "Give Bomb",
+            Content = "Bomb là server-side (không give được)",
+            Duration = 4
+        })
+    end
+end
+
+--// UI
 Tab:CreateToggle({
     Name = "ESP Player",
     CurrentValue = false,
@@ -150,11 +185,10 @@ Tab:CreateToggle({
 })
 
 Tab:CreateToggle({
-    Name = "ESP Name",
+    Name = "ESP Bomb Holder",
     CurrentValue = false,
     Callback = function(v)
-        Settings.NameESP = v
-        -- Name ESP có thể mở rộng thêm BillboardGui nếu bạn muốn
+        Settings.BombHolderESP = v
     end
 })
 
@@ -166,16 +200,15 @@ Tab:CreateToggle({
     end
 })
 
-Tab:CreateToggle({
-    Name = "ESP Bomb Holder",
-    CurrentValue = false,
-    Callback = function(v)
-        Settings.BombHolderESP = v
+Tab:CreateButton({
+    Name = "Give Bomb Tool",
+    Callback = function()
+        GiveBomb()
     end
 })
 
 Rayfield:Notify({
-    Title = "Blind Bomber ESP",
+    Title = "Blind Bomber",
     Content = "Loaded successfully!",
     Duration = 5
 })

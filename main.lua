@@ -1,65 +1,74 @@
 --[[
-    THIRSTY VAMPIRE - FINAL FIX (NGUYÊN MAP)
-    Dán nội dung này vào Executor của bạn
+    THIRSTY VAMPIRE - AUTO FARM COIN & CHEST
+    Tích hợp vào khung logic của bạn
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local lp = game.Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
 
 getgenv().vars = {
-    Aura = false,
-    Distance = 2000 -- Tầm đánh nguyên map
+    AutoFarmCoin = false,
+    FarmSpeed = 100 -- Tốc độ di chuyển khi farm
 }
 
+-- Hàm di chuyển mượt (Tween) để không bị Kick vì Teleport
+local function tweenTo(targetCFrame)
+    if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = lp.Character.HumanoidRootPart
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    local info = TweenInfo.new(distance / getgenv().vars.FarmSpeed, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, info, {CFrame = targetCFrame})
+    tween:Play()
+    return tween
+end
+
 local Window = Rayfield:CreateWindow({
-    Name = "Vampire Ultra Hub",
-    LoadingTitle = "Fixing Attack Logic...",
+    Name = "Vampire Coin Hub",
+    LoadingTitle = "Preparing Coin Collector...",
     Theme = "Default"
 })
 
-local Tab = Window:CreateTab("Main", nil)
+local Tab = Window:CreateTab("Farming", nil)
 
 Tab:CreateToggle({
-    Name = "Kill Aura (Đánh Toàn Map)",
+    Name = "Auto Collect Coins/Chests",
     CurrentValue = false,
     Callback = function(Value)
-        getgenv().vars.Aura = Value
+        getgenv().vars.AutoFarmCoin = Value
     end,
 })
 
--- LOGIC TẤN CÔNG CHÍNH XÁC
-task.spawn(function()
-    while task.wait(0.1) do
-        if getgenv().vars.Aura then
-            pcall(function()
-                local char = lp.Character
-                -- Tìm RemoteEvent nằm trong folder Vampire của nhân vật
-                local vFolder = char:FindFirstChild("Vampire")
-                local remote = vFolder and vFolder:FindFirstChild("VampireEvent")
+Tab:CreateSlider({
+    Name = "Tween Speed",
+    Range = {50, 300},
+    Increment = 10,
+    CurrentValue = 100,
+    Callback = function(Value)
+        getgenv().vars.FarmSpeed = Value
+    end,
+})
 
-                if remote then
-                    for _, v in pairs(game.Workspace:GetChildren()) do
-                        -- Tìm mục tiêu là NPC hoặc Player khác
-                        if v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v ~= char then
-                            local targetHrp = v.HumanoidRootPart
-                            local dist = (char.HumanoidRootPart.Position - targetHrp.Position).Magnitude
+-- LOGIC FARM COIN
+task.spawn(function()
+    while task.wait(0.5) do
+        if getgenv().vars.AutoFarmCoin then
+            pcall(function()
+                -- Tìm các vật phẩm Coin hoặc Chest trong Workspace
+                -- Lưu ý: Tên "Coin" hoặc "Chest" có thể thay đổi tùy bản update, script sẽ quét từ khóa
+                for _, obj in pairs(game.Workspace:GetChildren()) do
+                    if getgenv().vars.AutoFarmCoin == false then break end
+                    
+                    if obj.Name:lower():find("coin") or obj.Name:lower():find("chest") or obj:FindFirstChild("TouchInterest") then
+                        if obj:IsA("BasePart") or obj:FindFirstChildOfClass("BasePart") then
+                            local targetPart = obj:IsA("BasePart") and obj or obj:FindFirstChildOfClass("BasePart")
                             
-                            if dist <= getgenv().vars.Distance and v.Humanoid.Health > 0 then
-                                -- BƯỚC 1: KÍCH HOẠT TRẠNG THÁI ĐÁNH (BẮT BUỘC)
-                                remote:FireServer("Charging")
-                                remote:FireServer("Punch")
-                                
-                                -- BƯỚC 2: GỬI DỮ LIỆU SÁT THƯƠNG (DÙNG TABLE NHƯ CODE BẠN GỬI)
-                                remote:FireServer("PunchHit", {
-                                    ["hit"] = targetHrp
-                                })
-                                
-                                -- BƯỚC 3: HÚT MÁU (NẾU LÀ VAMPIRE)
-                                remote:FireServer("Suck", v)
-                                
-                                -- BƯỚC 4: KẾT THÚC TRẠNG THÁI
-                                remote:FireServer("CancelCharging")
-                            end
+                            -- Bay đến chỗ Coin/Chest
+                            local tw = tweenTo(targetPart.CFrame)
+                            if tw then tw.Completed:Wait() end
+                            
+                            -- Đợi một chút để game nhận vật phẩm
+                            task.wait(0.1)
                         end
                     end
                 end
@@ -69,7 +78,7 @@ task.spawn(function()
 end)
 
 Rayfield:Notify({
-    Title = "Đã Fix Lỗi Tấn Công",
-    Content = "Hãy bật Aura và đứng gần quái/người chơi để thử nghiệm.",
+    Title = "Auto Farm Ready",
+    Content = "Script sẽ tự động tìm rương và coin trên map để gom!",
     Duration = 5
 })

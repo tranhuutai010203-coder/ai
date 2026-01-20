@@ -1,120 +1,114 @@
---// Blind Bomber ESP FINAL
---// Rayfield UI + Fixed Bomb Detection
+--// Blind Bomber ESP FINAL (ANTI LAG + FIX BOMB)
 
-if not Drawing then
-    warn("Executor không hỗ trợ Drawing API")
-    return
-end
+if not Drawing then return end
 
---================ LIB =================--
+--========== LIB =========--
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
     Name = "Blind Bomber ESP",
     LoadingTitle = "Blind Bomber",
-    LoadingSubtitle = "ESP Loaded",
+    LoadingSubtitle = "Stable Version",
     ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("ESP", 4483362458)
 
---================ SERVICES =================--
+--========== SERVICES =========--
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
---================ TOGGLES =================--
+--========== TOGGLES =========--
 local ESP_PLAYER = false
 local ESP_NAME = false
 local ESP_BOMB = false
 local ESP_HOLDER = false
 
-Tab:CreateToggle({
-    Name = "ESP Player (Box)",
-    CurrentValue = false,
-    Callback = function(v) ESP_PLAYER = v end
-})
+Tab:CreateToggle({ Name="ESP Player", Callback=function(v) ESP_PLAYER=v end })
+Tab:CreateToggle({ Name="ESP Name", Callback=function(v) ESP_NAME=v end })
+Tab:CreateToggle({ Name="ESP Bomb (Placed)", Callback=function(v) ESP_BOMB=v end })
+Tab:CreateToggle({ Name="ESP Bomb Holder", Callback=function(v) ESP_HOLDER=v end })
 
-Tab:CreateToggle({
-    Name = "ESP Name",
-    CurrentValue = false,
-    Callback = function(v) ESP_NAME = v end
-})
+--========== PLAYER ESP =========--
+local playerESP = {}
 
-Tab:CreateToggle({
-    Name = "ESP Bomb (Placed)",
-    CurrentValue = false,
-    Callback = function(v) ESP_BOMB = v end
-})
+local function clearPlayer(plr)
+    if playerESP[plr] then
+        for _,d in pairs(playerESP[plr]) do d:Remove() end
+        playerESP[plr] = nil
+    end
+end
 
-Tab:CreateToggle({
-    Name = "ESP Bomb Holder",
-    CurrentValue = false,
-    Callback = function(v) ESP_HOLDER = v end
-})
+Players.PlayerRemoving:Connect(clearPlayer)
 
---================ FUNCTIONS =================--
+--========== BOMB CACHE =========--
+local bombCache = {}
 
--- check người cầm bomb (CHARACTER + BACKPACK)
+local function isBombPart(part)
+    return part:IsA("BasePart")
+       and part:FindFirstChildWhichIsA("TouchInterest")
+       and not part:IsDescendantOf(LocalPlayer.Character)
+end
+
+-- detect bomb spawn
+workspace.DescendantAdded:Connect(function(obj)
+    if isBombPart(obj) then
+        local text = Drawing.new("Text")
+        text.Text = "💣 BOMB"
+        text.Size = 14
+        text.Center = true
+        text.Outline = true
+        text.Color = Color3.fromRGB(255,70,70)
+
+        bombCache[obj] = text
+
+        obj.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                text:Remove()
+                bombCache[obj] = nil
+            end
+        end)
+    end
+end)
+
+--========== HOLDER CHECK =========--
 local function IsHoldingBomb(plr)
     if not plr.Character then return false end
 
     for _,v in ipairs(plr.Character:GetChildren()) do
-        if v:IsA("Tool") and v.Name:lower():find("bomb") then
-            return true
-        end
-    end
-
-    if plr:FindFirstChild("Backpack") then
-        for _,v in ipairs(plr.Backpack:GetChildren()) do
-            if v:IsA("Tool") and v.Name:lower():find("bomb") then
-                return true
-            end
-        end
+        if v:IsA("Tool") then return true end
     end
 
     return false
 end
 
---================ PLAYER ESP =================--
-local cache = {}
-
-local function Clear(plr)
-    if cache[plr] then
-        for _,d in pairs(cache[plr]) do
-            d:Remove()
-        end
-        cache[plr] = nil
-    end
-end
-
-Players.PlayerRemoving:Connect(Clear)
-
+--========== MAIN LOOP =========--
 RunService.RenderStepped:Connect(function()
+    -- PLAYER ESP
     for _,plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = plr.Character.HumanoidRootPart
-            local pos, visible = Camera:WorldToViewportPoint(hrp.Position)
+            local pos, vis = Camera:WorldToViewportPoint(hrp.Position)
 
-            if not cache[plr] then
-                cache[plr] = {
+            if not playerESP[plr] then
+                playerESP[plr] = {
                     box = Drawing.new("Square"),
                     name = Drawing.new("Text")
                 }
             end
 
-            local box = cache[plr].box
-            local name = cache[plr].name
+            local box = playerESP[plr].box
+            local name = playerESP[plr].name
 
             local isHolder = ESP_HOLDER and IsHoldingBomb(plr)
             local color = isHolder and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
 
-            -- BOX
-            if ESP_PLAYER and visible then
-                local size = 2000 / pos.Z
-                box.Size = Vector2.new(size, size * 1.5)
-                box.Position = Vector2.new(pos.X - size/2, pos.Y - size)
+            if ESP_PLAYER and vis then
+                local s = 2000 / pos.Z
+                box.Size = Vector2.new(s, s*1.5)
+                box.Position = Vector2.new(pos.X - s/2, pos.Y - s)
                 box.Color = color
                 box.Thickness = 2
                 box.Visible = true
@@ -122,44 +116,32 @@ RunService.RenderStepped:Connect(function()
                 box.Visible = false
             end
 
-            -- NAME
-            if ESP_NAME and visible then
+            if ESP_NAME and vis then
                 name.Text = plr.Name
+                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Size = 16
                 name.Center = true
                 name.Outline = true
                 name.Color = color
-                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Visible = true
             else
                 name.Visible = false
             end
         else
-            Clear(plr)
+            clearPlayer(plr)
         end
     end
 
-    --================ BOMB ESP (PLACED) =================--
-    if ESP_BOMB then
-        for _,obj in ipairs(workspace:GetDescendants()) do
-            if (obj:IsA("Model") or obj:IsA("Part")) and obj.Name:lower():find("bomb") then
-                local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") or obj
-                if part then
-                    local p, v = Camera:WorldToViewportPoint(part.Position)
-                    if v then
-                        local t = Drawing.new("Text")
-                        t.Text = "💣 BOMB"
-                        t.Size = 15
-                        t.Center = true
-                        t.Outline = true
-                        t.Color = Color3.fromRGB(255,60,60)
-                        t.Position = Vector2.new(p.X, p.Y)
-                        task.delay(0.04, function()
-                            t:Remove()
-                        end)
-                    end
-                end
+    -- BOMB ESP UPDATE (NHẸ)
+    for part,txt in pairs(bombCache) do
+        if ESP_BOMB and part and part.Parent then
+            local p, v = Camera:WorldToViewportPoint(part.Position)
+            txt.Visible = v
+            if v then
+                txt.Position = Vector2.new(p.X, p.Y)
             end
+        else
+            txt.Visible = false
         end
     end
 end)

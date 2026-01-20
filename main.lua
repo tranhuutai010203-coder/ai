@@ -1,147 +1,131 @@
 --[[ 
-    DON'T PRESS THE BUTTON 4 - ULTIMATE MOBILE HUB
-    - Library: Rayfield (Siêu mượt, không đơ cảm ứng)
-    - Fix lỗi: got nil & liệt UI
+    DON'T PRESS THE BUTTON 4 - SMART HUB PRO
+    - Logic: Auto Teleport to Win & Smart Safe Zone
+    - Library: Rayfield
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "AI HUB | Don't Press The Button 4",
-   LoadingTitle = "Đang khởi chạy hệ thống...",
+   Name = "AI HUB | DPTB 4 PRO",
+   LoadingTitle = "Đang cấu hình Smart Logic...",
    LoadingSubtitle = "by Tran Huu Tai",
-   ConfigurationSaving = {
-      Enabled = false -- Tắt để tránh lỗi đơ khi tải file cấu hình
-   },
-   Discord = {
-      Enabled = false
-   }
+   ConfigurationSaving = { Enabled = false }
 })
 
--- == BIẾN CẤU HÌNH ==
+-- == HỆ THỐNG BIẾN ==
 local LP = game:GetService("Players").LocalPlayer
 local _G = {
     AutoWin = false,
     AutoPress = false,
-    AutoFarm = false,
     SafeHeight = 1500
 }
 
 -- == HÀM HỖ TRỢ ==
 local function CreatePlatform()
-    local name = "SafeZone_AI_Part"
+    local name = "SmartSafeZone_Part"
     if workspace:FindFirstChild(name) then workspace[name]:Destroy() end
     local p = Instance.new("Part", workspace)
     p.Name = name
-    p.Size = Vector3.new(100, 2, 100)
+    p.Size = Vector3.new(50, 2, 50)
     p.Anchored = true
     p.Position = Vector3.new(0, _G.SafeHeight, 0)
-    p.Material = Enum.Material.ForceField
-    p.BrickColor = BrickColor.new("Electric blue")
     p.Transparency = 0.5
+    p.BrickColor = BrickColor.new("Electric blue")
     return p
 end
 
--- == CÁC TAB CHỨC NĂNG ==
+-- == LOGIC THÔNG MINH ==
 
--- TAB 1: CHÍNH
-local MainTab = Window:CreateTab("Chức Năng", 4483345998)
+-- 1. SMART AUTO WIN (Tele Đích hoặc Tele Trời)
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.Settings.AutoWin then
+            pcall(function()
+                local hrp = LP.Character.HumanoidRootPart
+                -- Tìm khu vực Đích (Thường là WinZone hoặc EndPart trong DPTB4)
+                local WinPart = workspace:FindFirstChild("WinPart") or workspace:FindFirstChild("EndPart") or workspace:FindFirstChild("WinnerPart")
+                
+                -- Kiểm tra nếu có thảm họa (Disaster) đang diễn ra
+                -- Trong DPTB4, khi có thảm họa, map thường xuất hiện các vật thể lạ hoặc folder Disaster
+                local DisasterActive = workspace:FindFirstChild("Disasters") or workspace:FindFirstChild("Events")
+                
+                if DisasterActive and #DisasterActive:GetChildren() > 0 then
+                    -- NẾU CÓ THẢM HỌA: Tele lên trời né
+                    if hrp.Position.Y < (_G.SafeHeight - 10) then
+                        hrp.CFrame = CFrame.new(0, _G.SafeHeight + 5, 0)
+                    end
+                    if not workspace:FindFirstChild("SmartSafeZone_Part") then CreatePlatform() end
+                elseif WinPart then
+                    -- NẾU KHÔNG CÓ THẢM HỌA: Tele thẳng đến chỗ thắng
+                    hrp.CFrame = WinPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            end)
+        end
+    end
+end)
+
+-- 2. AUTO PRESS BUTTON (Fix lỗi không ấn được)
+task.spawn(function()
+    while task.wait(0.3) do -- Tăng tốc độ quét
+        if _G.Settings.AutoPress then
+            pcall(function()
+                -- Tìm tất cả các nút trong game
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("ClickDetector") or v:IsA("ProximityPrompt") then
+                        -- Kiểm tra nếu tên cha là Button hoặc có hình dáng nút
+                        if v.Parent.Name:lower():find("button") or v.Parent:IsA("Model") then
+                            -- Kiểm tra khoảng cách để đảm bảo Executor có thể tương tác
+                            if v:IsA("ClickDetector") then 
+                                fireclickdetector(v)
+                            elseif v:IsA("ProximityPrompt") then
+                                fireproximityprompt(v)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- == GIAO DIỆN ==
+local MainTab = Window:CreateTab("Chức Năng Chính", 4483345998)
 
 MainTab:CreateToggle({
-   Name = "Smart Auto Win (Né thảm họa)",
+   Name = "Smart Auto Win (Đích/Trời)",
    CurrentValue = false,
-   Flag = "AutoWinToggle",
    Callback = function(Value)
-      _G.AutoWin = Value
-      if Value then
-         CreatePlatform()
-         task.spawn(function()
-            while _G.AutoWin do
-               task.wait(0.5)
-               pcall(function()
-                  local hrp = LP.Character.HumanoidRootPart
-                  -- Nếu nhân vật rơi khỏi bục hoặc ở thấp hơn bục an toàn
-                  if hrp.Position.Y < (_G.SafeHeight - 10) then
-                     hrp.CFrame = CFrame.new(hrp.Position.X, _G.SafeHeight + 5, hrp.Position.Z)
-                  end
-               end)
-            end
-         end)
-      else
-         if workspace:FindFirstChild("SafeZone_AI_Part") then 
-            workspace.SafeZone_AI_Part:Destroy() 
-         end
+      _G.Settings.AutoWin = Value
+      if not Value and workspace:FindFirstChild("SmartSafeZone_Part") then
+         workspace.SmartSafeZone_Part:Destroy()
       end
    end,
 })
 
 MainTab:CreateToggle({
-   Name = "Auto Press (Tự nhấn nút)",
+   Name = "Auto Press Button (Đã Fix)",
    CurrentValue = false,
-   Flag = "AutoPressToggle",
    Callback = function(Value)
-      _G.AutoPress = Value
-      task.spawn(function()
-         while _G.AutoPress do
-            task.wait(0.5)
-            for _, v in pairs(workspace:GetDescendants()) do
-               if v:IsA("ClickDetector") or v:IsA("ProximityPrompt") then
-                  if v.Parent.Name:lower():find("button") or v.Parent:IsA("Model") then
-                     if v:IsA("ClickDetector") then 
-                        fireclickdetector(v)
-                     else 
-                        fireproximityprompt(v) 
-                     end
-                  end
-               end
-            end
-         end
-      end)
+      _G.Settings.AutoPress = Value
    end,
 })
-
-MainTab:CreateSection("Cài đặt Safe Zone")
 
 MainTab:CreateSlider({
-   Name = "Độ cao an toàn",
+   Name = "Độ cao né thảm họa",
    Range = {500, 5000},
    Increment = 100,
-   Suffix = "Studs",
    CurrentValue = 1500,
-   Flag = "HeightSlider",
-   Callback = function(Value)
-      _G.SafeHeight = Value
-      if workspace:FindFirstChild("SafeZone_AI_Part") then
-         workspace.SafeZone_AI_Part.Position = Vector3.new(0, Value, 0)
-      end
-   end,
+   Callback = function(Value) _G.SafeHeight = Value end,
 })
 
--- TAB 2: NGƯỜI CHƠI
 local PlayerTab = Window:CreateTab("Người Chơi", 4483345998)
-
 PlayerTab:CreateSlider({
    Name = "Tốc độ chạy",
    Range = {16, 300},
    Increment = 1,
-   Suffix = "Speed",
    CurrentValue = 16,
-   Flag = "WalkSpeedSlider",
-   Callback = function(Value)
-      pcall(function() LP.Character.Humanoid.WalkSpeed = Value end)
-   end,
+   Callback = function(v) pcall(function() LP.Character.Humanoid.WalkSpeed = v end) end,
 })
 
-PlayerTab:CreateButton({
-   Name = "Reset Nhân Vật",
-   Callback = function()
-      if LP.Character then LP.Character:BreakJoints() end
-   end,
-})
-
-Rayfield:Notify({
-   Title = "Tải Thành Công",
-   Content = "Chúc bạn chơi game vui vẻ!",
-   Duration = 5,
-   Image = 4483345998,
-})
+Rayfield:LoadConfiguration()

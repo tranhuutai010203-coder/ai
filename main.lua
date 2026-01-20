@@ -1,58 +1,65 @@
 --[[
-    BẢN FIX HOÀN CHỈNH CHO THIRSTY VAMPIRE
-    Tích hợp Aura + Auto Quest dựa trên khung GitHub của bạn
+    THIRSTY VAMPIRE - FINAL FIX (NGUYÊN MAP)
+    Dán nội dung này vào Executor của bạn
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local lp = game.Players.LocalPlayer
 
 getgenv().vars = {
     Aura = false,
-    Range = 1000,
-    AutoQuest = false
+    Distance = 2000 -- Tầm đánh nguyên map
 }
 
 local Window = Rayfield:CreateWindow({
-    Name = "Vampire Helper - FIXED",
-    LoadingTitle = "Đang kiểm tra Remote...",
+    Name = "Vampire Ultra Hub",
+    LoadingTitle = "Fixing Attack Logic...",
     Theme = "Default"
 })
 
 local Tab = Window:CreateTab("Main", nil)
 
 Tab:CreateToggle({
-    Name = "Kill Aura (Đánh Nguyên Map)",
+    Name = "Kill Aura (Đánh Toàn Map)",
     CurrentValue = false,
     Callback = function(Value)
         getgenv().vars.Aura = Value
     end,
 })
 
-Tab:CreateSlider({
-    Name = "Tầm đánh",
-    Range = {10, 5000},
-    Increment = 100,
-    CurrentValue = 1000,
-    Callback = function(Value)
-        getgenv().vars.Range = Value
-    end,
-})
-
--- LOGIC QUAN TRỌNG: TÌM REMOTE ĐỂ ĐÁNH
+-- LOGIC TẤN CÔNG CHÍNH XÁC
 task.spawn(function()
     while task.wait(0.1) do
         if getgenv().vars.Aura then
             pcall(function()
-                local char = game.Players.LocalPlayer.Character
-                -- Trong game này, Remote thường nằm ở ReplicatedStorage hoặc trong Tool
-                local remote = game:GetService("ReplicatedStorage"):FindFirstChild("VampireEvent", true) or char:FindFirstChild("VampireEvent", true)
+                local char = lp.Character
+                -- Tìm RemoteEvent nằm trong folder Vampire của nhân vật
+                local vFolder = char:FindFirstChild("Vampire")
+                local remote = vFolder and vFolder:FindFirstChild("VampireEvent")
 
-                for _, v in pairs(game.Workspace:GetChildren()) do
-                    if v:FindFirstChild("Humanoid") and v.Name ~= game.Players.LocalPlayer.Name then
-                        local dist = (char.HumanoidRootPart.Position - v.HumanoidRootPart.Position).Magnitude
-                        if dist < getgenv().vars.Range and v.Humanoid.Health > 0 then
-                            -- Gửi lệnh đấm/hút máu
-                            remote:FireServer("Punch", v.HumanoidRootPart)
-                            remote:FireServer("Suck", v) 
+                if remote then
+                    for _, v in pairs(game.Workspace:GetChildren()) do
+                        -- Tìm mục tiêu là NPC hoặc Player khác
+                        if v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v ~= char then
+                            local targetHrp = v.HumanoidRootPart
+                            local dist = (char.HumanoidRootPart.Position - targetHrp.Position).Magnitude
+                            
+                            if dist <= getgenv().vars.Distance and v.Humanoid.Health > 0 then
+                                -- BƯỚC 1: KÍCH HOẠT TRẠNG THÁI ĐÁNH (BẮT BUỘC)
+                                remote:FireServer("Charging")
+                                remote:FireServer("Punch")
+                                
+                                -- BƯỚC 2: GỬI DỮ LIỆU SÁT THƯƠNG (DÙNG TABLE NHƯ CODE BẠN GỬI)
+                                remote:FireServer("PunchHit", {
+                                    ["hit"] = targetHrp
+                                })
+                                
+                                -- BƯỚC 3: HÚT MÁU (NẾU LÀ VAMPIRE)
+                                remote:FireServer("Suck", v)
+                                
+                                -- BƯỚC 4: KẾT THÚC TRẠNG THÁI
+                                remote:FireServer("CancelCharging")
+                            end
                         end
                     end
                 end
@@ -62,7 +69,7 @@ task.spawn(function()
 end)
 
 Rayfield:Notify({
-    Title = "Đã sửa lỗi!",
-    Content = "Script đã nạp đúng Remote của game. Hãy bật Toggle để thử.",
+    Title = "Đã Fix Lỗi Tấn Công",
+    Content = "Hãy bật Aura và đứng gần quái/người chơi để thử nghiệm.",
     Duration = 5
 })

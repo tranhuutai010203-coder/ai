@@ -1,96 +1,100 @@
---[[
-    Script cho game: First Is Owner
-    Chức năng: Tạo Menu & Tìm Server Rỗng
-]]
+--// Blind Bomber ESP Script
+--// by ChatGPT
 
-local Lyr = instance.new("ScreenGui")
-local MainFrame = instance.new("Frame")
-local Title = instance.new("TextLabel")
-local HopBtn = instance.new("TextButton")
-local CloseBtn = instance.new("TextButton")
-local UICorner = instance.new("UICorner")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
 
--- Thiết lập Giao diện (GUI)
-Lyr.Name = "FirstIsOwnerMenu"
-Lyr.Parent = game.CoreGui
+--================ GUI =================--
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+local Frame = Instance.new("Frame", ScreenGui)
+local UIList = Instance.new("UIListLayout", Frame)
 
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = Lyr
-MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-MainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
-MainFrame.Size = UDim2.new(0, 200, 0, 150)
-MainFrame.Active = true
-MainFrame.Draggable = true -- Cho phép kéo menu đi chỗ khác
+Frame.Size = UDim2.new(0, 200, 0, 180)
+Frame.Position = UDim2.new(0, 20, 0.3, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+Frame.Active = true
+Frame.Draggable = true
 
-Title.Name = "Title"
-Title.Parent = MainFrame
-Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.Font = Enum.Font.SourceSansBold
-Title.Text = "MENU CHỦ LẦM"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 20
-
-HopBtn.Name = "HopBtn"
-HopBtn.Parent = MainFrame
-HopBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-HopBtn.Position = UDim2.new(0.1, 0, 0.4, 0)
-HopBtn.Size = UDim2.new(0.8, 0, 0, 40)
-HopBtn.Font = Enum.Font.SourceSans
-HopBtn.Text = "Tìm Server Rỗng"
-HopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-HopBtn.TextSize = 18
-
-local btnCorner = instance.new("UICorner")
-btnCorner.Parent = HopBtn
-
-CloseBtn.Name = "CloseBtn"
-CloseBtn.Parent = MainFrame
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Position = UDim2.new(0.85, 0, 0, 0)
-CloseBtn.Size = UDim2.new(0.15, 0, 0.2, 0)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-CloseBtn.TextSize = 15
-
--- Chức năng Tìm Server Rỗng (Server Hop)
-local function ServerHop()
-    local Http = game:GetService("HttpService")
-    local TPS = game:GetService("TeleportService")
-    local Api = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-    
-    local function GetServers(cursor)
-        local url = Api .. (cursor and "&cursor=" .. cursor or "")
-        -- Sử dụng proxy vì Roblox chặn gọi trực tiếp API từ client
-        local success, result = pcall(function()
-            return game:HttpGet(url)
-        end)
-        
-        if success then
-            return Http:JSONDecode(result)
-        end
-        return nil
-    end
-
-    local serverList = GetServers()
-    if serverList and serverList.data then
-        for _, server in pairs(serverList.data) do
-            -- Kiểm tra server còn chỗ và không phải server hiện tại
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                TPS:TeleportToPlaceInstance(game.PlaceId, server.id, game.Players.LocalPlayer)
-                return
-            end
-        end
-    end
-    print("Không tìm thấy server phù hợp.")
+local function Button(text)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, -10, 0, 30)
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Parent = Frame
+    return b
 end
 
--- Kết nối sự kiện
-HopBtn.MouseButton1Click:Connect(function()
-    HopBtn.Text = "Đang tìm..."
-    ServerHop()
+local ESP_Player = false
+local ESP_Name = false
+local ESP_Bomb = false
+local ESP_BombHolder = false
+
+Button("ESP PLAYER").MouseButton1Click:Connect(function()
+    ESP_Player = not ESP_Player
 end)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    Lyr:Destroy()
+Button("ESP NAME").MouseButton1Click:Connect(function()
+    ESP_Name = not ESP_Name
 end)
+
+Button("ESP BOMB").MouseButton1Click:Connect(function()
+    ESP_Bomb = not ESP_Bomb
+end)
+
+Button("ESP BOMB HOLDER").MouseButton1Click:Connect(function()
+    ESP_BombHolder = not ESP_BombHolder
+end)
+
+--================ DRAWING =================--
+local Drawings = {}
+
+local function Clear(plr)
+    if Drawings[plr] then
+        for _,v in pairs(Drawings[plr]) do
+            v:Remove()
+        end
+        Drawings[plr] = nil
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    for _,plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = plr.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+
+            if not Drawings[plr] then
+                Drawings[plr] = {
+                    Box = Drawing.new("Square"),
+                    Name = Drawing.new("Text")
+                }
+            end
+
+            local box = Drawings[plr].Box
+            local name = Drawings[plr].Name
+
+            if onScreen and ESP_Player then
+                local size = 2000 / pos.Z
+                box.Size = Vector2.new(size, size*1.5)
+                box.Position = Vector2.new(pos.X - size/2, pos.Y - size)
+                box.Color = Color3.new(0,1,0)
+                box.Thickness = 2
+                box.Visible = true
+            else
+                box.Visible = false
+            end
+
+            -- ESP NAME
+            if onScreen and ESP_Name then
+                name.Text = plr.Name
+                name.Size = 16
+                name.Position = Vector2.new(pos.X, pos.Y - 60)
+                name.Center = true
+                name.Color = Color3.new(1,1,1)
+                name.Visible = true
+            else
+                name.Visible = false
+            end

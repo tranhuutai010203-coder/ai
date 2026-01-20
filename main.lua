@@ -1,6 +1,6 @@
 --[[
-    THIRSTY VAMPIRE - AUTO FARM COIN & CHEST
-    Tích hợp vào khung logic của bạn
+    THIRSTY VAMPIRE - AUTO FARM COIN (PRO VERSION)
+    Tự động bay đến và thực hiện lệnh nhặt (Click/E/Touch)
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -8,67 +8,67 @@ local lp = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 
 getgenv().vars = {
-    AutoFarmCoin = false,
-    FarmSpeed = 100 -- Tốc độ di chuyển khi farm
+    AutoCoin = false,
+    Speed = 150
 }
 
--- Hàm di chuyển mượt (Tween) để không bị Kick vì Teleport
 local function tweenTo(targetCFrame)
     if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart") then return end
     local hrp = lp.Character.HumanoidRootPart
-    local distance = (hrp.Position - targetCFrame.Position).Magnitude
-    local info = TweenInfo.new(distance / getgenv().vars.FarmSpeed, Enum.EasingStyle.Linear)
-    local tween = TweenService:Create(hrp, info, {CFrame = targetCFrame})
-    tween:Play()
-    return tween
+    local dist = (hrp.Position - targetCFrame.Position).Magnitude
+    local info = TweenInfo.new(dist / getgenv().vars.Speed, Enum.EasingStyle.Linear)
+    local tw = TweenService:Create(hrp, info, {CFrame = targetCFrame})
+    tw:Play()
+    return tw
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "Vampire Coin Hub",
-    LoadingTitle = "Preparing Coin Collector...",
+    Name = "Vampire Collector",
+    LoadingTitle = "Checking Coin Logic...",
     Theme = "Default"
 })
 
-local Tab = Window:CreateTab("Farming", nil)
+local Tab = Window:CreateTab("Farm Money", nil)
 
 Tab:CreateToggle({
-    Name = "Auto Collect Coins/Chests",
+    Name = "Auto Farm Coin/Chest",
     CurrentValue = false,
     Callback = function(Value)
-        getgenv().vars.AutoFarmCoin = Value
+        getgenv().vars.AutoCoin = Value
     end,
 })
 
-Tab:CreateSlider({
-    Name = "Tween Speed",
-    Range = {50, 300},
-    Increment = 10,
-    CurrentValue = 100,
-    Callback = function(Value)
-        getgenv().vars.FarmSpeed = Value
-    end,
-})
-
--- LOGIC FARM COIN
+-- LOGIC NHẶT TIỀN TỔNG HỢP
 task.spawn(function()
     while task.wait(0.5) do
-        if getgenv().vars.AutoFarmCoin then
+        if getgenv().vars.AutoCoin then
             pcall(function()
-                -- Tìm các vật phẩm Coin hoặc Chest trong Workspace
-                -- Lưu ý: Tên "Coin" hoặc "Chest" có thể thay đổi tùy bản update, script sẽ quét từ khóa
-                for _, obj in pairs(game.Workspace:GetChildren()) do
-                    if getgenv().vars.AutoFarmCoin == false then break end
-                    
-                    if obj.Name:lower():find("coin") or obj.Name:lower():find("chest") or obj:FindFirstChild("TouchInterest") then
-                        if obj:IsA("BasePart") or obj:FindFirstChildOfClass("BasePart") then
-                            local targetPart = obj:IsA("BasePart") and obj or obj:FindFirstChildOfClass("BasePart")
-                            
-                            -- Bay đến chỗ Coin/Chest
-                            local tw = tweenTo(targetPart.CFrame)
+                for _, obj in pairs(game.Workspace:GetDescendants()) do
+                    if not getgenv().vars.AutoCoin then break end
+
+                    -- Kiểm tra xem vật phẩm có phải là Coin/Money/Chest không
+                    if obj.Name:lower():find("coin") or obj.Name:lower():find("money") or obj.Name:lower():find("chest") then
+                        local part = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart", true)
+                        
+                        if part then
+                            -- 1. Bay đến mục tiêu
+                            local tw = tweenTo(part.CFrame * CFrame.new(0, 2, 0)) -- Bay cao hơn một chút tránh kẹt map
                             if tw then tw.Completed:Wait() end
                             
-                            -- Đợi một chút để game nhận vật phẩm
-                            task.wait(0.1)
+                            -- 2. Thực hiện mọi cách nhặt:
+                            -- Cách A: Nhấn chuột (ClickDetector)
+                            local cd = obj:FindFirstChildOfClass("ClickDetector") or part:FindFirstChildOfClass("ClickDetector")
+                            if cd then fireclickdetector(cd) end
+                            
+                            -- Cách B: Nhấn phím E (ProximityPrompt)
+                            local prompt = obj:FindFirstChildOfClass("ProximityPrompt") or part:FindFirstChildOfClass("ProximityPrompt")
+                            if prompt then fireproximityprompt(prompt) end
+                            
+                            -- Cách C: Chạm trực tiếp (Touch)
+                            firetouchinterest(lp.Character.HumanoidRootPart, part, 0)
+                            firetouchinterest(lp.Character.HumanoidRootPart, part, 1)
+                            
+                            task.wait(0.2)
                         end
                     end
                 end
@@ -76,9 +76,3 @@ task.spawn(function()
         end
     end
 end)
-
-Rayfield:Notify({
-    Title = "Auto Farm Ready",
-    Content = "Script sẽ tự động tìm rương và coin trên map để gom!",
-    Duration = 5
-})

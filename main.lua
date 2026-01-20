@@ -1,4 +1,5 @@
---// Blind Bomber ESP - Rayfield Version
+--// Blind Bomber ESP FINAL
+--// Rayfield UI + Fixed Bomb Detection
 
 if not Drawing then
     warn("Executor không hỗ trợ Drawing API")
@@ -12,9 +13,7 @@ local Window = Rayfield:CreateWindow({
     Name = "Blind Bomber ESP",
     LoadingTitle = "Blind Bomber",
     LoadingSubtitle = "ESP Loaded",
-    ConfigurationSaving = {
-        Enabled = false
-    }
+    ConfigurationSaving = { Enabled = false }
 })
 
 local Tab = Window:CreateTab("ESP", 4483362458)
@@ -34,39 +33,54 @@ local ESP_HOLDER = false
 Tab:CreateToggle({
     Name = "ESP Player (Box)",
     CurrentValue = false,
-    Callback = function(v)
-        ESP_PLAYER = v
-    end
+    Callback = function(v) ESP_PLAYER = v end
 })
 
 Tab:CreateToggle({
     Name = "ESP Name",
     CurrentValue = false,
-    Callback = function(v)
-        ESP_NAME = v
-    end
+    Callback = function(v) ESP_NAME = v end
 })
 
 Tab:CreateToggle({
-    Name = "ESP Bomb",
+    Name = "ESP Bomb (Placed)",
     CurrentValue = false,
-    Callback = function(v)
-        ESP_BOMB = v
-    end
+    Callback = function(v) ESP_BOMB = v end
 })
 
 Tab:CreateToggle({
     Name = "ESP Bomb Holder",
     CurrentValue = false,
-    Callback = function(v)
-        ESP_HOLDER = v
-    end
+    Callback = function(v) ESP_HOLDER = v end
 })
 
---================ ESP CORE =================--
+--================ FUNCTIONS =================--
+
+-- check người cầm bomb (CHARACTER + BACKPACK)
+local function IsHoldingBomb(plr)
+    if not plr.Character then return false end
+
+    for _,v in ipairs(plr.Character:GetChildren()) do
+        if v:IsA("Tool") and v.Name:lower():find("bomb") then
+            return true
+        end
+    end
+
+    if plr:FindFirstChild("Backpack") then
+        for _,v in ipairs(plr.Backpack:GetChildren()) do
+            if v:IsA("Tool") and v.Name:lower():find("bomb") then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+--================ PLAYER ESP =================--
 local cache = {}
 
-local function clear(plr)
+local function Clear(plr)
     if cache[plr] then
         for _,d in pairs(cache[plr]) do
             d:Remove()
@@ -75,13 +89,13 @@ local function clear(plr)
     end
 end
 
-Players.PlayerRemoving:Connect(clear)
+Players.PlayerRemoving:Connect(Clear)
 
 RunService.RenderStepped:Connect(function()
     for _,plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local hrp = plr.Character.HumanoidRootPart
-            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local pos, visible = Camera:WorldToViewportPoint(hrp.Position)
 
             if not cache[plr] then
                 cache[plr] = {
@@ -93,18 +107,11 @@ RunService.RenderStepped:Connect(function()
             local box = cache[plr].box
             local name = cache[plr].name
 
-            -- check bomb holder
-            local isHolder = false
-            for _,tool in ipairs(plr.Character:GetChildren()) do
-                if tool:IsA("Tool") and tool.Name:lower():find("bomb") then
-                    isHolder = true
-                end
-            end
-
-            local color = isHolder and Color3.new(1,0,0) or Color3.new(0,1,0)
+            local isHolder = ESP_HOLDER and IsHoldingBomb(plr)
+            local color = isHolder and Color3.fromRGB(255,0,0) or Color3.fromRGB(0,255,0)
 
             -- BOX
-            if ESP_PLAYER and onScreen then
+            if ESP_PLAYER and visible then
                 local size = 2000 / pos.Z
                 box.Size = Vector2.new(size, size * 1.5)
                 box.Position = Vector2.new(pos.X - size/2, pos.Y - size)
@@ -116,38 +123,41 @@ RunService.RenderStepped:Connect(function()
             end
 
             -- NAME
-            if ESP_NAME and onScreen then
+            if ESP_NAME and visible then
                 name.Text = plr.Name
                 name.Size = 16
                 name.Center = true
                 name.Outline = true
-                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Color = color
+                name.Position = Vector2.new(pos.X, pos.Y - 60)
                 name.Visible = true
             else
                 name.Visible = false
             end
         else
-            clear(plr)
+            Clear(plr)
         end
     end
 
-    -- ESP BOMB MAP
+    --================ BOMB ESP (PLACED) =================--
     if ESP_BOMB then
-        for _,v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("Tool") and v.Name:lower():find("bomb") and v:FindFirstChild("Handle") then
-                local p, vis = Camera:WorldToViewportPoint(v.Handle.Position)
-                if vis then
-                    local t = Drawing.new("Text")
-                    t.Text = "💣 BOMB"
-                    t.Size = 14
-                    t.Center = true
-                    t.Outline = true
-                    t.Color = Color3.new(1,0,0)
-                    t.Position = Vector2.new(p.X, p.Y)
-                    task.delay(0.05, function()
-                        t:Remove()
-                    end)
+        for _,obj in ipairs(workspace:GetDescendants()) do
+            if (obj:IsA("Model") or obj:IsA("Part")) and obj.Name:lower():find("bomb") then
+                local part = obj:IsA("Model") and obj:FindFirstChildWhichIsA("BasePart") or obj
+                if part then
+                    local p, v = Camera:WorldToViewportPoint(part.Position)
+                    if v then
+                        local t = Drawing.new("Text")
+                        t.Text = "💣 BOMB"
+                        t.Size = 15
+                        t.Center = true
+                        t.Outline = true
+                        t.Color = Color3.fromRGB(255,60,60)
+                        t.Position = Vector2.new(p.X, p.Y)
+                        task.delay(0.04, function()
+                            t:Remove()
+                        end)
+                    end
                 end
             end
         end
